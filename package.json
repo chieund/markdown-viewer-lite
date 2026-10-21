@@ -1,7 +1,7 @@
 {
     "name": "markdown-viewer-lite",
     "displayName": "Markdown Viewer Lite (Pele)",
-    "description": "Lightweight Markdown preview powered by Pele — TOC, search, syntax highlighting and PDF/HTML export.",
+    "description": "Fast, lightweight Markdown preview for VS Code with TOC, search, syntax highlighting, Pele-powered Mermaid diagrams, and HTML/PDF export.",
     "version": "0.1.1",
     "publisher": "bumkom",
     "license": "MIT",
@@ -30,13 +30,15 @@
     ],
     "keywords": [
         "markdown",
-        "preview",
-        "pele",
+        "markdown-preview",
         "mermaid",
-        "lightweight",
-        "fast",
+        "diagram",
+        "flowchart",
+        "pele",
         "toc",
-        "search"
+        "pdf-export",
+        "html-export",
+        "syntax-highlighting"
     ],
     "main": "./out/extension.js",
     "activationEvents": [

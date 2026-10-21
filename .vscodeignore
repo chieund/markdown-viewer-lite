@@ -1,5 +1,6 @@
 .vscode/**
 .vscode-test/**
+.github/**
 out-test/**
 test/**
 test-results/**
@@ -16,3 +17,4 @@ scripts/**
 *.mjs
 *.vsix
 pnpm-lock.yaml
+media/social-preview.png
