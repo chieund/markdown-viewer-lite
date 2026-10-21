@@ -1,11 +1,15 @@
 # Changelog
 
+## 0.1.2
+
+- Added Marketplace screenshots, GitHub SEO metadata, and CI packaging.
+- Improved README copy, install instructions, FAQ, and repository metadata.
+
 ## 0.1.1
 
 - Added a full-screen diagram viewer with zoom, pan, SVG download and Mermaid source copy.
 - The viewer traps focus, closes with `Esc`, and restores focus to the diagram button.
 - Fixed diagram state being lost when the preview re-rendered.
-- Added Marketplace screenshots, GitHub SEO metadata, and CI packaging.
 
 ## 0.1.0
 
