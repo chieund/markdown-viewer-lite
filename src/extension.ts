@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
+import { findHeadingLine } from './headings';
 
 type ThemeSetting = 'auto' | 'light' | 'dark';
 
@@ -55,34 +56,6 @@ function safeFileName(name: string): string {
     return name.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'markdown';
 }
 
-function headingSlug(text: string): string {
-    return text
-        .trim()
-        .replace(/<[^>]*>/g, '')
-        .replace(/[`*_~[\]]/g, '')
-        .toLowerCase()
-        .replace(/[^\p{L}\p{N}\s-]/gu, '')
-        .replace(/\s+/g, '-');
-}
-
-function findHeadingLine(text: string, anchor: string): number | undefined {
-    let decoded = anchor;
-    try {
-        decoded = decodeURIComponent(anchor);
-    } catch {
-        // Malformed percent escapes: fall back to the literal anchor.
-    }
-    const wanted = decoded.replace(/^#/, '').toLowerCase();
-    const lines = text.split(/\r?\n/);
-    for (let index = 0; index < lines.length; index++) {
-        const match = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(lines[index]);
-        if (!match) continue;
-        const heading = match[2];
-        if (headingSlug(heading) === wanted || heading.trim().toLowerCase() === wanted) return index;
-    }
-    return undefined;
-}
-
 function documentUrl(document: vscode.TextDocument): string {
     if (!panel) return document.uri.toString();
     try {
@@ -103,6 +76,9 @@ function sendContent(): void {
         content: currentDocument.getText(),
         url: documentUrl(currentDocument),
         fileName: path.basename(currentDocument.fileName),
+        relativePath: currentDocument.isUntitled
+            ? undefined
+            : vscode.workspace.asRelativePath(currentDocument.uri, false),
         config: getConfig(),
     });
     const line = pendingLine ?? visibleEditorLine();
@@ -225,7 +201,11 @@ function createPanel(context: vscode.ExtensionContext): vscode.WebviewPanel {
     return created;
 }
 
-async function openPreviewForDocument(document: vscode.TextDocument, line?: number): Promise<void> {
+async function openPreviewForDocument(
+    document: vscode.TextDocument,
+    line?: number,
+    reveal = false,
+): Promise<void> {
     if (!isMarkdown(document)) {
         vscode.window.showInformationMessage('Markdown Viewer Lite only previews Markdown files.');
         return;
@@ -252,7 +232,9 @@ async function openPreviewForDocument(document: vscode.TextDocument, line?: numb
     }
 
     setPanelTitle(document);
-    if (panel.visible) panel.reveal(panel.viewColumn, true);
+    // An explicit open brings the preview forward even when another tab in
+    // its group covers it; following the active editor must not steal focus.
+    if (reveal) panel.reveal(panel.viewColumn, true);
     if (webviewReady) sendContent();
 }
 
@@ -305,7 +287,31 @@ async function followLink(href: string): Promise<void> {
     const document = await vscode.workspace.openTextDocument(vscode.Uri.file(targetPath));
     await vscode.window.showTextDocument(document, { preview: true, viewColumn: vscode.ViewColumn.One });
     const line = anchorPart ? findHeadingLine(document.getText(), anchorPart) : undefined;
-    await openPreviewForDocument(document, line);
+    await openPreviewForDocument(document, line, true);
+}
+
+/**
+ * Opens a file the extension wrote in the user's browser. In a remote window
+ * (WSL, SSH, containers) the extension host's file system is not the one the
+ * desktop browser sees, so a plain file:// URI would point at nothing.
+ */
+async function openInBrowser(file: vscode.Uri): Promise<void> {
+    const remote = vscode.env.remoteName;
+    const distro = process.env.WSL_DISTRO_NAME;
+    if (!remote) {
+        await vscode.env.openExternal(file);
+        return;
+    }
+    if (remote === 'wsl' && distro) {
+        // Windows reaches WSL files through \\wsl.localhost\<distro>\...
+        const unc = vscode.Uri.from({ scheme: 'file', authority: 'wsl.localhost', path: `/${distro}${file.path}` });
+        if (await vscode.env.openExternal(unc)) return;
+    }
+    const copy = await vscode.window.showInformationMessage(
+        `Saved ${path.basename(file.fsPath)} on the remote machine. Open it in a browser on that machine, or copy it locally.`,
+        'Copy Path',
+    );
+    if (copy === 'Copy Path') await vscode.env.clipboard.writeText(file.fsPath);
 }
 
 async function exportDocument(message: ExportMessage): Promise<void> {
@@ -327,7 +333,7 @@ async function exportDocument(message: ExportMessage): Promise<void> {
         await fs.promises.writeFile(target.fsPath, message.html, 'utf-8');
         const open = await vscode.window.showInformationMessage(`Exported ${path.basename(target.fsPath)}.`, 'Open');
         if (open === 'Open') {
-            void vscode.env.openExternal(target);
+            void openInBrowser(target);
         }
         return;
     }
@@ -337,14 +343,18 @@ async function exportDocument(message: ExportMessage): Promise<void> {
     // extension small and the text selectable.
     const directory = path.join(os.tmpdir(), 'markdown-viewer-lite');
     await fs.promises.mkdir(directory, { recursive: true });
-    const target = path.join(directory, suggested);
+    // A per-export name keeps a browser tab that is still printing an earlier
+    // export from being overwritten underneath it.
+    const target = path.join(directory, `${path.basename(suggested, '.html')}-${Date.now()}.html`);
     const printHtml = message.html.replace(
         '</body>',
         '<script>window.addEventListener("load", function () { setTimeout(function () { window.print(); }, 300); });</script></body>',
     );
     await fs.promises.writeFile(target, printHtml, 'utf-8');
-    await vscode.env.openExternal(vscode.Uri.file(target));
-    vscode.window.showInformationMessage('Choose “Save as PDF” in the print dialog.');
+    if (!vscode.env.remoteName) {
+        vscode.window.showInformationMessage('Choose “Save as PDF” in the print dialog.');
+    }
+    await openInBrowser(vscode.Uri.file(target));
 }
 
 async function exportSvg(message: ExportSvgMessage): Promise<void> {
@@ -365,11 +375,20 @@ async function exportSvg(message: ExportSvgMessage): Promise<void> {
     await fs.promises.writeFile(target.fsPath, xml, 'utf-8');
     const open = await vscode.window.showInformationMessage(`Exported ${path.basename(target.fsPath)}.`, 'Open');
     if (open === 'Open') {
-        void vscode.env.openExternal(target);
+        void vscode.commands.executeCommand('vscode.open', target);
     }
 }
 
 export function activate(context: vscode.ExtensionContext): void {
+    const ensurePanel = () => {
+        if (panel) return;
+        panel = createPanel(context);
+        // Keep the status bar entry in step with the preview tab itself, not
+        // only with editor switches.
+        panel.onDidChangeViewState(() => updateStatusBar());
+        panel.onDidDispose(() => updateStatusBar());
+    };
+
     const openPreview = async () => {
         const editor = vscode.window.activeTextEditor;
         if (!editor || !isMarkdown(editor.document)) {
@@ -383,8 +402,8 @@ export function activate(context: vscode.ExtensionContext): void {
             return;
         }
 
-        if (!panel) panel = createPanel(context);
-        await openPreviewForDocument(editor.document);
+        ensurePanel();
+        await openPreviewForDocument(editor.document, undefined, true);
         await vscode.window.showTextDocument(editor.document, {
             preview: false,
             preserveFocus: true,
@@ -415,8 +434,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
         const document = await vscode.workspace.openTextDocument(target);
         await vscode.window.showTextDocument(document, { preview: false, viewColumn: vscode.ViewColumn.One });
-        if (!panel) panel = createPanel(context);
-        await openPreviewForDocument(document);
+        ensurePanel();
+        await openPreviewForDocument(document, undefined, true);
     };
 
     const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);

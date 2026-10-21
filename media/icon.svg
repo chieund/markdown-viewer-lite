@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="tile" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#0B1E2D"/>
+      <stop offset="0.55" stop-color="#0E3F55"/>
+      <stop offset="1" stop-color="#0F6E86"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.78" cy="0.82" r="0.6">
+      <stop offset="0" stop-color="#22D3EE" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#22D3EE" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="page" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FBFCFE"/>
+      <stop offset="1" stop-color="#E9EEF5"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#020814" flood-opacity="0.45"/>
+    </filter>
+    <filter id="badgeShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#020814" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <!-- Tile -->
+  <rect x="6" y="6" width="244" height="244" rx="54" fill="url(#tile)"/>
+  <rect x="6" y="6" width="244" height="244" rx="54" fill="url(#glow)"/>
+  <rect x="7" y="7" width="242" height="242" rx="53" fill="none" stroke="#FFFFFF" stroke-opacity="0.07" stroke-width="2"/>
+
+  <!-- Page with folded corner -->
+  <g filter="url(#shadow)">
+    <path d="M70 38 H176 L204 66 V202 A16 16 0 0 1 188 218 H70 A16 16 0 0 1 54 202 V54 A16 16 0 0 1 70 38 Z" fill="url(#page)"/>
+  </g>
+  <path d="M176 38 V56 A10 10 0 0 0 186 66 H204 Z" fill="#CBD5E1"/>
+
+  <!-- Text lines -->
+  <rect x="74" y="78" width="62" height="10" rx="5" fill="#111827"/>
+  <rect x="74" y="99" width="96" height="8" rx="4" fill="#94A3B8"/>
+  <rect x="74" y="115" width="74" height="8" rx="4" fill="#94A3B8"/>
+  <rect x="74" y="131" width="84" height="8" rx="4" fill="#94A3B8"/>
+
+  <!-- Diagram -->
+  <path d="M95 182 L128 162 L161 182" fill="none" stroke="#0E7490" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="116" y="150" width="24" height="24" rx="6" fill="#F59E0B" stroke="#111827" stroke-width="3.5"/>
+  <circle cx="95" cy="182" r="10.5" fill="#22D3EE" stroke="#111827" stroke-width="3.5"/>
+  <circle cx="161" cy="182" r="10.5" fill="#A78BFA" stroke="#111827" stroke-width="3.5"/>
+
+  <!-- Markdown badge -->
+  <g filter="url(#badgeShadow)">
+    <rect x="30" y="26" width="64" height="40" rx="11" fill="#0B1220" stroke="#22D3EE" stroke-width="3.5"/>
+  </g>
+  <path d="M43 56 V36 L53 47 L63 36 V56" fill="none" stroke="#F8FAFC" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M78 35 V55 M71 48 L78 55 L85 48" fill="none" stroke="#22D3EE" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

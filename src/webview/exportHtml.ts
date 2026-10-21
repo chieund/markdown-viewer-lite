@@ -40,7 +40,7 @@ export interface ExportOptions {
 export async function buildExportHtml(source: HTMLElement, options: ExportOptions): Promise<string> {
     const clone = source.cloneNode(true) as HTMLElement
     clone.querySelectorAll('[data-line]').forEach(element => element.removeAttribute('data-line'))
-    clone.querySelectorAll('.pele-diagram__badge, button').forEach(element => element.remove())
+    clone.querySelectorAll('button').forEach(element => element.remove())
 
     await inlineImages(clone)
 

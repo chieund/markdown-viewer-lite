@@ -84,7 +84,9 @@ test('renders Markdown, TOC and Pele diagrams without duplicate SVG ids', async 
     await openLite(page, CONTENT)
 
     await expect(page.locator('.pele-diagram__canvas svg')).toHaveCount(2)
-    await expect(page.locator('.toc__item')).toHaveCount(5)
+    await expect(page.locator('.toc__title')).toHaveText('Lite Preview')
+    await expect(page.locator('.toc__item')).toHaveCount(4)
+    await expect(page.locator('.toc__number')).toHaveText(['1', '2', '3', '4'])
     await expect(page.locator('.code-block .token.keyword').first()).toBeVisible()
 
     const duplicateIds = await page.evaluate(() => {
@@ -157,7 +159,7 @@ test('toggles theme and exports standalone HTML', async ({ page }) => {
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
 
     await page.getByRole('button', { name: 'Export', exact: true }).click()
-    await page.getByRole('button', { name: 'HTML', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'HTML', exact: true }).click()
 
     await page.waitForFunction(() =>
         (window as unknown as { __postedMessages: Array<{ type: string }> }).__postedMessages
@@ -233,3 +235,142 @@ test('does not overflow horizontally at narrow widths', async ({ page }) => {
     expect(toolbarFits).toBe(true)
 })
 
+
+function postedMessages(page: Page) {
+    return page.evaluate(() =>
+        (window as unknown as { __postedMessages: Array<{ type: string; [key: string]: unknown }> }).__postedMessages,
+    )
+}
+
+const ANCHORS = `# Anchors
+
+[Jump to the second setup](#setup-1) and a footnote[^1].
+
+\`\`\`bash
+# setup
+npm install
+\`\`\`
+
+## Setup
+
+First setup.
+
+${Array.from({ length: 40 }, (_, index) => `Filler paragraph ${index}.`).join('\n\n')}
+
+## Setup
+
+Second setup.
+
+${Array.from({ length: 40 }, (_, index) => `More filler ${index}.`).join('\n\n')}
+
+[^1]: The footnote text.
+`
+
+test('follows in-page anchors and footnotes inside the preview', async ({ page }) => {
+    await openLite(page, ANCHORS)
+
+    await page.getByRole('link', { name: 'Jump to the second setup' }).click()
+    await expect(page.locator('#setup-1')).toBeInViewport()
+    const afterAnchor = await postedMessages(page)
+    expect(afterAnchor.some(message => message.type === 'OPEN_LINK')).toBe(false)
+    const secondSetupLine = ANCHORS.split('\n').lastIndexOf('## Setup')
+    await expect.poll(async () => (await postedMessages(page))
+        .filter(message => message.type === 'REVEAL_LINE').at(-1)?.line).toBe(secondSetupLine)
+
+    const footnoteRef = page.locator('sup a').first()
+    const target = await footnoteRef.getAttribute('href')
+    await footnoteRef.click()
+    await expect(page.getByText('The footnote text.')).toBeInViewport()
+    expect(target).toBeTruthy()
+
+    await page.locator('a[data-footnote-backref]').first().click()
+    await expect(footnoteRef).toBeInViewport()
+})
+
+test('follows VS Code theme changes in auto mode', async ({ page }) => {
+    await openLite(page, CONTENT, { ...CONFIG, theme: 'auto' })
+    const toggle = page.getByRole('button', { name: 'Toggle light/dark theme' })
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    await expect(page.locator('html')).toHaveAttribute('data-vscode-colors', '')
+
+    await page.evaluate(() => document.body.classList.add('vscode-dark'))
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+
+    await toggle.click()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+    // A manual choice stops borrowing the editor's colours.
+    await expect(page.locator('html')).not.toHaveAttribute('data-vscode-colors', '')
+})
+
+test('keeps source lines on code blocks and diagrams for scroll sync', async ({ page }) => {
+    await openLite(page, CONTENT)
+    const lines = CONTENT.split('\n')
+    await expect(page.locator('.code-block')).toHaveAttribute('data-line', String(lines.indexOf('```ts') + 1))
+    await expect(page.locator('figure.pele-diagram').first()).toHaveAttribute('data-line', String(lines.indexOf('```mermaid') + 1))
+})
+
+test('highlights more common languages', async ({ page }) => {
+    await openLite(page, [
+        '```ruby\ndef hello\n  puts "hi"\nend\n```',
+        '```cpp\nint main() { return 0; }\n```',
+        '```csharp\npublic class A { }\n```',
+        '```php\n<?php echo "hi"; ?>\n```',
+    ].join('\n\n'))
+    for (const language of ['ruby', 'cpp', 'csharp', 'php']) {
+        await expect(page.locator(`code.language-${language} .token`).first()).toBeVisible()
+    }
+})
+
+test('renders GitHub alerts as callouts', async ({ page }) => {
+    await openLite(page, '> [!NOTE]\n> Useful information.\n\n> [!WARNING]\n> Careful **here**.\n\n> Plain quote.\n')
+    await expect(page.locator('.markdown-alert')).toHaveCount(2)
+    await expect(page.locator('.markdown-alert-note .markdown-alert-title')).toHaveText('Note')
+    await expect(page.locator('.markdown-alert-note')).toContainText('Useful information.')
+    await expect(page.locator('.markdown-alert-note')).not.toContainText('[!NOTE]')
+    await expect(page.locator('.markdown-alert-warning strong')).toHaveText('here')
+    await expect(page.locator('blockquote')).toHaveText('Plain quote.')
+})
+
+test('copies code and diagram source from block headers', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+    await openLite(page, CONTENT)
+
+    await expect(page.locator('.code-block .block-header__label')).toHaveText('ts')
+    await page.getByRole('button', { name: 'Copy code' }).click()
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('const answer: number = 42\nconsole.log(answer)')
+
+    const diagram = page.locator('.pele-diagram').first()
+    await expect(diagram.locator('.block-header__label')).toContainText('flowchart')
+    await expect(diagram.locator('.block-header__label')).toContainText('Pele')
+    await diagram.getByRole('button', { name: 'Copy Mermaid source' }).click()
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('flowchart TD')
+
+    await diagram.getByRole('button', { name: 'Download SVG' }).click()
+    await expect.poll(async () => (await postedMessages(page)).some(message => message.type === 'EXPORT_SVG')).toBe(true)
+})
+
+test('filters the outline and pauses scroll sync', async ({ page }) => {
+    await openLite(page, CONTENT)
+    await page.getByRole('textbox', { name: 'Filter headings' }).fill('diag')
+    await expect(page.locator('.toc__text')).toHaveText(['Diagram', 'Second diagram'])
+
+    await page.getByRole('button', { name: 'Scroll sync' }).click()
+    await expect(page.locator('.statusbar__sync')).toHaveText('Scroll sync off')
+    await page.evaluate(() => {
+        (window as unknown as { __postedMessages: unknown[] }).__postedMessages = []
+        window.dispatchEvent(new MessageEvent('message', { data: { type: 'SCROLL_TO_LINE', line: 30 } }))
+    })
+    await page.waitForTimeout(200)
+    expect(await page.locator('.preview-scroll').evaluate(element => element.scrollTop)).toBe(0)
+})
+
+test('shows the workspace path as a breadcrumb', async ({ page }) => {
+    await openLite(page, CONTENT)
+    await page.evaluate(() => window.postMessage({
+        type: 'SET_CONTENT', content: '# Hi', fileName: 'handbook.md', relativePath: 'docs/guides/handbook.md',
+    }, '*'))
+    await expect(page.locator('.breadcrumb__folder')).toHaveText(['docs', 'guides'])
+    await expect(page.locator('.breadcrumb__file')).toHaveText('handbook.md')
+})

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { hasVsCodeApi, post } from '../vscode'
+import { copyText, saveSvg } from '../clipboard'
 
 interface DiagramLightboxProps {
     svg: string
@@ -171,35 +171,10 @@ export default function DiagramLightbox({ svg, chart, onClose }: DiagramLightbox
         setDragging(false)
     }
 
-    const downloadSvg = () => {
-        if (hasVsCodeApi()) {
-            post({ type: 'EXPORT_SVG', svg, suggestedName: 'diagram' })
-            return
-        }
-
-        const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' })
-        const url = URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = 'diagram.svg'
-        link.click()
-        window.setTimeout(() => URL.revokeObjectURL(url), 0)
-    }
+    const downloadSvg = () => saveSvg(svg)
 
     const copySource = async () => {
-        try {
-            await navigator.clipboard.writeText(chart)
-        } catch {
-            const textarea = document.createElement('textarea')
-            textarea.value = chart
-            textarea.style.position = 'fixed'
-            textarea.style.opacity = '0'
-            document.body.appendChild(textarea)
-            textarea.select()
-            document.execCommand('copy')
-            textarea.remove()
-        }
-
+        await copyText(chart)
         setCopied(true)
         if (copyTimer.current) clearTimeout(copyTimer.current)
         copyTimer.current = window.setTimeout(() => setCopied(false), 1600)

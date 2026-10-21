@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { ArrowDownIcon, ArrowUpIcon, CloseIcon } from './Icons'
 
 interface SearchPanelProps {
     open: boolean
@@ -27,7 +28,7 @@ function collectRanges(root: HTMLElement, query: string): Range[] {
         acceptNode(node) {
             const parent = node.parentElement
             if (!parent) return NodeFilter.FILTER_REJECT
-            if (parent.closest('script, style, button, .pele-diagram__badge')) return NodeFilter.FILTER_REJECT
+            if (parent.closest('script, style, button, .block-header')) return NodeFilter.FILTER_REJECT
             return node.nodeValue?.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
         },
     })
@@ -35,7 +36,10 @@ function collectRanges(root: HTMLElement, query: string): Range[] {
     while (walker.nextNode()) {
         const node = walker.currentNode as Text
         const text = node.nodeValue ?? ''
-        const haystack = text.toLocaleLowerCase()
+        // Case-folding can change a string's length (e.g. "İ"); only fold
+        // when offsets stay valid for the original text node.
+        const folded = text.toLocaleLowerCase()
+        const haystack = folded.length === text.length ? folded : text
         let offset = 0
         while (offset <= haystack.length) {
             const index = haystack.indexOf(needle, offset)
@@ -63,10 +67,11 @@ export default function SearchPanel({ open, containerRef, content, onClose }: Se
         support.registry.delete('mdp-search')
         support.registry.delete('mdp-search-current')
 
-        const visible = ranges.slice(0, 500)
-        support.registry.set('mdp-search', new support.Highlight(...visible))
-        if (visible[index]) {
-            support.registry.set('mdp-search-current', new support.Highlight(visible[index]))
+        // Painting is capped for very common terms; the current match is
+        // always painted, even past the cap.
+        support.registry.set('mdp-search', new support.Highlight(...ranges.slice(0, 500)))
+        if (ranges[index]) {
+            support.registry.set('mdp-search-current', new support.Highlight(ranges[index]))
         }
     }
 
@@ -140,13 +145,13 @@ export default function SearchPanel({ open, containerRef, content, onClose }: Se
                 {query ? `${total === 0 ? 0 : current + 1}/${total}` : ''}
             </span>
             <button type="button" onClick={() => move(-1)} title="Previous match" aria-label="Previous match">
-                ↑
+                <ArrowUpIcon size={14} />
             </button>
             <button type="button" onClick={() => move(1)} title="Next match" aria-label="Next match">
-                ↓
+                <ArrowDownIcon size={14} />
             </button>
             <button type="button" onClick={onClose} title="Close search" aria-label="Close search">
-                ✕
+                <CloseIcon size={14} />
             </button>
         </div>
     )

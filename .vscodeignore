@@ -18,3 +18,4 @@ scripts/**
 *.vsix
 pnpm-lock.yaml
 media/social-preview.png
+media/icon.svg

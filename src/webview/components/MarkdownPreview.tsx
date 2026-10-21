@@ -7,6 +7,7 @@ import rehypeSlug from 'rehype-slug'
 import type { PluggableList } from 'unified'
 import CodeBlock from './CodeBlock'
 import PeleDiagram from './PeleDiagram'
+import rehypeAlerts from '../rehypeAlerts'
 import rehypeLineNumbers from '../rehypeLineNumbers'
 import { sanitizeSchema } from '../sanitizeSchema'
 
@@ -16,7 +17,19 @@ const REHYPE_PLUGINS: PluggableList = [
     rehypeRaw,
     [rehypeSanitize, sanitizeSchema],
     rehypeSlug,
+    rehypeAlerts,
 ]
+
+// Footnote ids are prefixed by rehype-sanitize's clobber step; letting
+// remark-rehype prefix them as well would make `#user-content-fn-1` point at
+// `user-content-user-content-fn-1`. The preview resolves the prefix on click.
+const REMARK_REHYPE_OPTIONS = { clobberPrefix: '' }
+
+function sourceLine(node: { properties?: Record<string, unknown> } | undefined): number | undefined {
+    const value = node?.properties?.dataLine ?? node?.properties?.['data-line']
+    const line = Number(value)
+    return Number.isFinite(line) && line > 0 ? line : undefined
+}
 
 function textOf(node: ReactNode): string {
     if (typeof node === 'string' || typeof node === 'number') return String(node)
@@ -41,25 +54,27 @@ export default function MarkdownPreview({
     onOpenLink,
 }: MarkdownPreviewProps) {
     const components = useMemo<Components>(() => ({
-        pre({ children }) {
+        pre({ node, children }) {
+            const line = sourceLine(node)
             const child = Array.isArray(children) ? children[0] : children
-            if (!isValidElement(child)) return <pre>{children}</pre>
+            if (!isValidElement(child)) return <pre data-line={line}>{children}</pre>
 
             const props = child.props as { className?: string; children?: ReactNode }
             const language = /language-([\w+#.-]+)/.exec(props.className ?? '')?.[1]
             const code = textOf(props.children).replace(/\n$/, '')
 
-            if (language === 'mermaid') return <PeleDiagram chart={code} />
-            return <CodeBlock code={code} language={language} highlight={syntaxHighlighting} />
+            if (language === 'mermaid') return <PeleDiagram chart={code} line={line} />
+            return <CodeBlock code={code} language={language} highlight={syntaxHighlighting} line={line} />
         },
 
         code({ className, children }) {
             return <code className={className}>{children}</code>
         },
 
-        a({ href, children }) {
+        a({ node: _node, href, children, ...rest }) {
             return (
                 <a
+                    {...rest}
                     href={href}
                     onClick={event => {
                         event.preventDefault()
@@ -97,6 +112,7 @@ export default function MarkdownPreview({
             <ReactMarkdown
                 remarkPlugins={REMARK_PLUGINS}
                 rehypePlugins={REHYPE_PLUGINS}
+                remarkRehypeOptions={REMARK_REHYPE_OPTIONS}
                 components={components}
             >
                 {content}
