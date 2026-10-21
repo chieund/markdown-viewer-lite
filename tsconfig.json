@@ -1,0 +1,27 @@
+{
+    "compilerOptions": {
+        "module": "preserve",
+        "target": "es2020",
+        "lib": [
+            "es2020"
+        ],
+        "sourceMap": true,
+        "outDir": "out",
+        "strict": true,
+        "skipLibCheck": true,
+        "moduleResolution": "bundler",
+        "types": [
+            "node",
+            "vscode"
+        ]
+    },
+    "include": [
+        "src/extension.ts"
+    ],
+    "exclude": [
+        "node_modules",
+        "src/webview",
+        "vite.config.ts",
+        "out"
+    ]
+}

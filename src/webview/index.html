@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'none';
+        img-src {{cspSource}} https: data: blob:;
+        script-src {{cspSource}} 'unsafe-inline';
+        style-src {{cspSource}} 'unsafe-inline';
+        font-src {{cspSource}} data: https:;
+        connect-src {{cspSource}} https: data: blob:;
+    ">
+    <title>Markdown Viewer Lite</title>
+</head>
+
+<body>
+    <div id="root">Loading Markdown Viewer Lite…</div>
+    <script type="module" src="./main.tsx"></script>
+</body>
+
+</html>
